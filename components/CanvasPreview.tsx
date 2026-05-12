@@ -54,7 +54,7 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     const width =
       typeof metrics.actualBoundingBoxLeft === 'number' &&
       typeof metrics.actualBoundingBoxRight === 'number'
-        ? metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight
+        ? Math.max(metrics.width, metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight)
         : metrics.width
     const ascent =
       typeof metrics.actualBoundingBoxAscent === 'number'
@@ -68,6 +68,29 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     return { width, height, ascent, descent }
   }
 
+  const fitTextBlock = (
+    ctx: CanvasRenderingContext2D,
+    lines: string[],
+    maxWidth: number,
+    maxHeight: number,
+    fontFamily: string
+  ) => {
+    const baseSize = 300
+    const lineSpacingFactor = 0.05
+    const measured = lines.map((line) =>
+      getTextMetrics(ctx, line, baseSize, fontFamily)
+    )
+    const widestLine = Math.max(...measured.map((metric) => metric.width))
+    const totalLineHeight = measured.reduce((sum, metric) => sum + metric.height, 0)
+    const lineHeight = Math.max(...measured.map((metric) => metric.height))
+    const totalHeight = totalLineHeight + (lines.length - 1) * lineHeight * lineSpacingFactor
+
+    const widthScale = maxWidth / widestLine
+    const heightScale = maxHeight / totalHeight
+    const scale = Math.min(widthScale, heightScale, 1)
+    return baseSize * scale
+  }
+
   // 通常のレイアウト（複数行対応）
   const drawNormalLayout = (
     ctx: CanvasRenderingContext2D,
@@ -78,40 +101,40 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   ) => {
     ctx.fillStyle = color
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    ctx.textBaseline = 'alphabetic'
 
     const padding = size * 0.03
     const availableWidth = size - padding * 2
     const availableHeight = size - padding * 2
-    let fontSize = size * 1.2
     const lineSpacingFactor = 0.05
 
-    while (fontSize > 8) {
-      const lineMetrics = lines.map((line) =>
-        getTextMetrics(ctx, line, fontSize, fontFamily)
-      )
-      const widestLine = Math.max(...lineMetrics.map((metric) => metric.width))
-      const maxLineHeight = Math.max(...lineMetrics.map((metric) => metric.height))
-      const lineHeight = maxLineHeight * (1 + lineSpacingFactor)
-      const totalHeight = lineHeight * lines.length
-
-      if (widestLine <= availableWidth && totalHeight <= availableHeight) {
-        break
-      }
-      fontSize -= 1
-    }
-
-    const lineMetrics = lines.map((line) =>
-      getTextMetrics(ctx, line, fontSize, fontFamily)
-    )
-    const maxLineHeight = Math.max(...lineMetrics.map((metric) => metric.height))
-    const lineHeight = maxLineHeight * (1 + lineSpacingFactor)
-    const totalHeight = lineHeight * lines.length
-    const startY = size / 2 - totalHeight / 2 + lineHeight / 2
+    const fontSize = fitTextBlock(ctx, lines, availableWidth, availableHeight, fontFamily)
+    const metrics = lines.map((line) => getTextMetrics(ctx, line, fontSize, fontFamily))
+    const lineHeight = Math.max(...metrics.map((metric) => metric.height)) * (1 + lineSpacingFactor)
+    const totalHeight = metrics.reduce((sum, metric) => sum + metric.height, 0) + (lines.length - 1) * lineHeight * lineSpacingFactor
+    let y = size / 2 - totalHeight / 2
 
     lines.forEach((line, index) => {
-      ctx.fillText(line, size / 2, startY + index * lineHeight)
+      const metric = metrics[index]
+      y += metric.ascent
+      ctx.fillText(line, size / 2, y)
+      y += metric.descent + lineHeight * lineSpacingFactor
     })
+  }
+
+  const fitSingleChar = (
+    ctx: CanvasRenderingContext2D,
+    char: string,
+    maxWidth: number,
+    maxHeight: number,
+    fontFamily: string
+  ) => {
+    const baseSize = 300
+    const metrics = getTextMetrics(ctx, char, baseSize, fontFamily)
+    const widthScale = maxWidth / metrics.width
+    const heightScale = maxHeight / metrics.height
+    const scale = Math.min(widthScale, heightScale, 1)
+    return baseSize * scale
   }
 
   // 2文字の場合の特殊レイアウト（左右に1文字ずつ、縦に引き伸ばし）
@@ -124,7 +147,7 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   ) => {
     ctx.fillStyle = color
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    ctx.textBaseline = 'alphabetic'
 
     const [char1, char2] = chars
     const padding = size * 0.03
@@ -133,27 +156,19 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     const availableHeight = size - padding * 2
     const cellWidth = (availableWidth - gap) / 2
 
-    let fontSize = size * 1.2
-    while (fontSize > 8) {
-      const metrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
-      const metrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
-      const fitsWidth =
-        metrics1.width <= cellWidth && metrics2.width <= cellWidth
-      const fitsHeight =
-        metrics1.height <= availableHeight && metrics2.height <= availableHeight
-      if (fitsWidth && fitsHeight) {
-        break
-      }
-      fontSize -= 1
-    }
+    const fontSize1 = fitSingleChar(ctx, char1, cellWidth, availableHeight, fontFamily)
+    const fontSize2 = fitSingleChar(ctx, char2, cellWidth, availableHeight, fontFamily)
+    const metrics1 = getTextMetrics(ctx, char1, fontSize1, fontFamily)
+    const metrics2 = getTextMetrics(ctx, char2, fontSize2, fontFamily)
 
-    const metrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
-    const metrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
-    const centerY = size / 2
+    const top = size / 2 - availableHeight / 2
+    const y1 = top + (availableHeight - metrics1.height) / 2 + metrics1.ascent
+    const y2 = top + (availableHeight - metrics2.height) / 2 + metrics2.ascent
     const x1 = padding + cellWidth / 2
     const x2 = padding + cellWidth + gap + cellWidth / 2
-    ctx.fillText(char1, x1, centerY)
-    ctx.fillText(char2, x2, centerY)
+
+    ctx.fillText(char1, x1, y1)
+    ctx.fillText(char2, x2, y2)
   }
 
   useEffect(() => {
