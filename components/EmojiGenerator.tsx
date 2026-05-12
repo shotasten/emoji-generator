@@ -45,7 +45,7 @@ const EmojiGenerator: React.FC<EmojiGeneratorProps> = () => {
           text={text}
           fontFamily={fontFamily}
           color={color}
-          canvasSize={400}
+          canvasSize={180}
         />
       </div>
     </div>

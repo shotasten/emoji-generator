@@ -15,7 +15,7 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   fontSize = 80,
   fontFamily = "Rounded M+ 1p black",
   color = '#FFB7C5',
-  canvasSize = 400,
+  canvasSize = 180,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -54,16 +54,18 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    const maxWidth = size * 0.92
-    const maxHeight = size * 0.92
+    const padding = size * 0.04
+    const maxWidth = size - padding * 2
+    const maxHeight = size - padding * 2
     let fontSize = size
 
     while (fontSize > 10) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
-      const lineHeights = lines.length * fontSize * 1.02
       const widestLine = Math.max(...lines.map((line) => ctx.measureText(line).width))
+      const lineHeight = fontSize * 0.9
+      const totalHeight = lineHeight * lines.length
 
-      if (widestLine <= maxWidth && lineHeights <= maxHeight) {
+      if (widestLine <= maxWidth && totalHeight <= maxHeight) {
         break
       }
 
@@ -71,7 +73,7 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     }
 
     ctx.font = `bold ${fontSize}px ${fontFamily}`
-    const lineHeight = fontSize * 1.02
+    const lineHeight = fontSize * 0.9
     const totalHeight = lineHeight * lines.length
     const startY = size / 2 - totalHeight / 2 + lineHeight / 2
 
@@ -93,23 +95,26 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textBaseline = 'middle'
 
     const [char1, char2] = text.split('')
-    const maxCharWidth = size * 0.42
-    const maxCharHeight = size * 0.98
-    const verticalScale = 1.08
+    const padding = size * 0.04
+    const availableWidth = size - padding * 2
+    const availableHeight = size - padding * 2
 
-    let fontSize = size * 0.95 / verticalScale
+    let fontSize = size
     while (fontSize > 10) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
       const width1 = ctx.measureText(char1).width
       const width2 = ctx.measureText(char2).width
+      const maxWidth = Math.max(width1, width2)
+      const scale = availableHeight / fontSize
 
-      if (width1 <= maxCharWidth && width2 <= maxCharWidth && fontSize * verticalScale <= maxCharHeight) {
+      if (maxWidth <= availableWidth * 0.45 && scale >= 1) {
         break
       }
 
       fontSize -= 2
     }
 
+    const verticalScale = Math.min(1.25, availableHeight / fontSize)
     ctx.font = `bold ${fontSize}px ${fontFamily}`
     ctx.save()
     ctx.translate(0, size / 2)
