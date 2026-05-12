@@ -96,12 +96,12 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textBaseline = 'middle'
 
     const [char1, char2] = text.split('')
-    const padding = size * 0.05
+    const padding = size * 0.02
     const availableWidth = size - padding * 2
     const availableHeight = size - padding * 2
-    const targetCharWidth = availableWidth * 0.48
+    const targetCharWidth = availableWidth * 0.46
 
-    let fontSize = availableHeight * 0.9
+    let fontSize = availableHeight * 0.95
     while (fontSize > 10) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
       const width1 = ctx.measureText(char1).width
@@ -115,7 +115,7 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
       fontSize -= 1
     }
 
-    const verticalScale = Math.min(1.25, availableHeight / fontSize)
+    const verticalScale = availableHeight / (fontSize * 0.92)
     ctx.font = `bold ${fontSize}px ${fontFamily}`
     ctx.save()
     ctx.translate(0, size / 2)
