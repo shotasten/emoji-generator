@@ -54,26 +54,27 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    const padding = size * 0.04
+    const padding = size * 0.05
     const maxWidth = size - padding * 2
     const maxHeight = size - padding * 2
-    let fontSize = size
+    let fontSize = size * 0.95
+    const lineHeightFactor = lines.length > 1 ? 0.9 : 0.95
 
     while (fontSize > 10) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
       const widestLine = Math.max(...lines.map((line) => ctx.measureText(line).width))
-      const lineHeight = fontSize * 0.9
+      const lineHeight = fontSize * lineHeightFactor
       const totalHeight = lineHeight * lines.length
 
       if (widestLine <= maxWidth && totalHeight <= maxHeight) {
         break
       }
 
-      fontSize -= 2
+      fontSize -= 1
     }
 
     ctx.font = `bold ${fontSize}px ${fontFamily}`
-    const lineHeight = fontSize * 0.9
+    const lineHeight = fontSize * lineHeightFactor
     const totalHeight = lineHeight * lines.length
     const startY = size / 2 - totalHeight / 2 + lineHeight / 2
 
@@ -95,23 +96,23 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textBaseline = 'middle'
 
     const [char1, char2] = text.split('')
-    const padding = size * 0.04
+    const padding = size * 0.05
     const availableWidth = size - padding * 2
     const availableHeight = size - padding * 2
+    const targetCharWidth = availableWidth * 0.48
 
-    let fontSize = size
+    let fontSize = availableHeight * 0.9
     while (fontSize > 10) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
       const width1 = ctx.measureText(char1).width
       const width2 = ctx.measureText(char2).width
       const maxWidth = Math.max(width1, width2)
-      const scale = availableHeight / fontSize
 
-      if (maxWidth <= availableWidth * 0.45 && scale >= 1) {
+      if (maxWidth <= targetCharWidth) {
         break
       }
 
-      fontSize -= 2
+      fontSize -= 1
     }
 
     const verticalScale = Math.min(1.25, availableHeight / fontSize)
