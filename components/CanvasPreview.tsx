@@ -54,11 +54,11 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    const padding = size * 0.05
+    const padding = size * 0.03
     const maxWidth = size - padding * 2
     const maxHeight = size - padding * 2
-    let fontSize = size * 0.95
-    const lineHeightFactor = lines.length > 1 ? 0.9 : 0.95
+    let fontSize = size * 0.98
+    const lineHeightFactor = lines.length > 1 ? 0.82 : 0.98
 
     while (fontSize > 10) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
@@ -96,32 +96,33 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textBaseline = 'middle'
 
     const [char1, char2] = text.split('')
-    const padding = size * 0.02
-    const availableWidth = size - padding * 2
+    const padding = size * 0.03
+    const gap = size * 0.08
+    const availableWidth = size - padding * 2 - gap
     const availableHeight = size - padding * 2
-    const targetCharWidth = availableWidth * 0.46
+    const maxCharWidth = availableWidth / 2
 
-    let fontSize = availableHeight * 0.95
-    while (fontSize > 10) {
+    let fontSize = size * 0.95
+    while (fontSize > 8) {
       ctx.font = `bold ${fontSize}px ${fontFamily}`
       const width1 = ctx.measureText(char1).width
       const width2 = ctx.measureText(char2).width
       const maxWidth = Math.max(width1, width2)
 
-      if (maxWidth <= targetCharWidth) {
+      if (maxWidth <= maxCharWidth) {
         break
       }
 
       fontSize -= 1
     }
 
-    const verticalScale = availableHeight / (fontSize * 0.92)
+    const verticalScale = Math.min(1.4, availableHeight / (fontSize * 0.95))
     ctx.font = `bold ${fontSize}px ${fontFamily}`
     ctx.save()
     ctx.translate(0, size / 2)
     ctx.scale(1, verticalScale)
-    ctx.fillText(char1, size * 0.25, 0)
-    ctx.fillText(char2, size * 0.75, 0)
+    ctx.fillText(char1, padding + maxCharWidth / 2, 0)
+    ctx.fillText(char2, size - padding - maxCharWidth / 2, 0)
     ctx.restore()
   }
 
