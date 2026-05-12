@@ -20,26 +20,52 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Canvas描画ロジック
-  const drawText = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const drawText = async () => {
+    if (!canvasRef.current) return
+    if (typeof document !== 'undefined' && document.fonts) {
+      await document.fonts.ready
+    }
 
+    const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // キャンバスをクリア（透明にする）
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    const lines = text.split('\n').filter(line => line.length > 0)
-    
+    const lines = text.split('\n').filter((line) => line.length > 0)
     if (lines.length === 0) return
 
-    // 2文字の場合の特殊処理
-    if (text.length === 2 && lines.length === 1) {
-      drawTwoCharacterLayout(ctx, text, canvasSize, color, fontFamily)
+    const chars = Array.from(text)
+    if (chars.length === 2 && lines.length === 1) {
+      drawTwoCharacterLayout(ctx, chars, canvasSize, color, fontFamily)
     } else {
       drawNormalLayout(ctx, lines, canvasSize, color, fontFamily)
     }
+  }
+
+  const getTextMetrics = (
+    ctx: CanvasRenderingContext2D,
+    content: string,
+    fontSize: number,
+    fontFamily: string
+  ) => {
+    ctx.font = `bold ${fontSize}px ${fontFamily}`
+    const metrics = ctx.measureText(content)
+    const width =
+      typeof metrics.actualBoundingBoxLeft === 'number' &&
+      typeof metrics.actualBoundingBoxRight === 'number'
+        ? metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight
+        : metrics.width
+    const ascent =
+      typeof metrics.actualBoundingBoxAscent === 'number'
+        ? metrics.actualBoundingBoxAscent
+        : fontSize * 0.8
+    const descent =
+      typeof metrics.actualBoundingBoxDescent === 'number'
+        ? metrics.actualBoundingBoxDescent
+        : fontSize * 0.2
+    const height = ascent + descent
+    return { width, height, ascent, descent }
   }
 
   // 通常のレイアウト（複数行対応）
@@ -55,26 +81,31 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textBaseline = 'middle'
 
     const padding = size * 0.03
-    const maxWidth = size - padding * 2
-    const maxHeight = size - padding * 2
-    let fontSize = size * 0.98
-    const lineHeightFactor = lines.length > 1 ? 0.82 : 0.98
+    const availableWidth = size - padding * 2
+    const availableHeight = size - padding * 2
+    let fontSize = size * 1.2
+    const lineSpacingFactor = 0.05
 
-    while (fontSize > 10) {
-      ctx.font = `bold ${fontSize}px ${fontFamily}`
-      const widestLine = Math.max(...lines.map((line) => ctx.measureText(line).width))
-      const lineHeight = fontSize * lineHeightFactor
+    while (fontSize > 8) {
+      const lineMetrics = lines.map((line) =>
+        getTextMetrics(ctx, line, fontSize, fontFamily)
+      )
+      const widestLine = Math.max(...lineMetrics.map((metric) => metric.width))
+      const maxLineHeight = Math.max(...lineMetrics.map((metric) => metric.height))
+      const lineHeight = maxLineHeight * (1 + lineSpacingFactor)
       const totalHeight = lineHeight * lines.length
 
-      if (widestLine <= maxWidth && totalHeight <= maxHeight) {
+      if (widestLine <= availableWidth && totalHeight <= availableHeight) {
         break
       }
-
       fontSize -= 1
     }
 
-    ctx.font = `bold ${fontSize}px ${fontFamily}`
-    const lineHeight = fontSize * lineHeightFactor
+    const lineMetrics = lines.map((line) =>
+      getTextMetrics(ctx, line, fontSize, fontFamily)
+    )
+    const maxLineHeight = Math.max(...lineMetrics.map((metric) => metric.height))
+    const lineHeight = maxLineHeight * (1 + lineSpacingFactor)
     const totalHeight = lineHeight * lines.length
     const startY = size / 2 - totalHeight / 2 + lineHeight / 2
 
@@ -86,7 +117,7 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   // 2文字の場合の特殊レイアウト（左右に1文字ずつ、縦に引き伸ばし）
   const drawTwoCharacterLayout = (
     ctx: CanvasRenderingContext2D,
-    text: string,
+    chars: string[],
     size: number,
     color: string,
     fontFamily: string
@@ -95,35 +126,34 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    const [char1, char2] = text.split('')
+    const [char1, char2] = chars
     const padding = size * 0.03
-    const gap = size * 0.08
-    const availableWidth = size - padding * 2 - gap
+    const gap = size * 0.06
+    const availableWidth = size - padding * 2
     const availableHeight = size - padding * 2
-    const maxCharWidth = availableWidth / 2
+    const cellWidth = (availableWidth - gap) / 2
 
-    let fontSize = size * 0.95
+    let fontSize = size * 1.2
     while (fontSize > 8) {
-      ctx.font = `bold ${fontSize}px ${fontFamily}`
-      const width1 = ctx.measureText(char1).width
-      const width2 = ctx.measureText(char2).width
-      const maxWidth = Math.max(width1, width2)
-
-      if (maxWidth <= maxCharWidth) {
+      const metrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
+      const metrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
+      const fitsWidth =
+        metrics1.width <= cellWidth && metrics2.width <= cellWidth
+      const fitsHeight =
+        metrics1.height <= availableHeight && metrics2.height <= availableHeight
+      if (fitsWidth && fitsHeight) {
         break
       }
-
       fontSize -= 1
     }
 
-    const verticalScale = Math.min(1.4, availableHeight / (fontSize * 0.95))
-    ctx.font = `bold ${fontSize}px ${fontFamily}`
-    ctx.save()
-    ctx.translate(0, size / 2)
-    ctx.scale(1, verticalScale)
-    ctx.fillText(char1, padding + maxCharWidth / 2, 0)
-    ctx.fillText(char2, size - padding - maxCharWidth / 2, 0)
-    ctx.restore()
+    const metrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
+    const metrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
+    const centerY = size / 2
+    const x1 = padding + cellWidth / 2
+    const x2 = padding + cellWidth + gap + cellWidth / 2
+    ctx.fillText(char1, x1, centerY)
+    ctx.fillText(char2, x2, centerY)
   }
 
   useEffect(() => {
