@@ -103,15 +103,13 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
 
-    const padding = 0
-    const availableWidth = size - padding * 2
-    const availableHeight = size - padding * 2
+    const availableWidth = size
+    const availableHeight = size
     const lineSpacingFactor = 0.05
 
     const fontSize = fitTextBlock(ctx, lines, availableWidth, availableHeight, fontFamily)
     const metrics = lines.map((line) => getTextMetrics(ctx, line, fontSize, fontFamily))
-    const lineHeight = Math.max(...metrics.map((metric) => metric.height))
-    const lineGap = lineHeight * lineSpacingFactor
+    const lineGap = Math.max(...metrics.map((metric) => metric.height)) * lineSpacingFactor
     const totalHeight = metrics.reduce((sum, metric) => sum + metric.height, 0) + (lines.length - 1) * lineGap
     let y = size / 2 - totalHeight / 2
 
@@ -136,10 +134,9 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     ctx.textBaseline = 'alphabetic'
 
     const [char1, char2] = chars
-    const padding = 0
     const gap = 2
-    const availableWidth = size - padding * 2
-    const availableHeight = size - padding * 2
+    const availableWidth = size
+    const availableHeight = size
     const cellWidth = (availableWidth - gap) / 2
 
     let fontSize = size * 0.86
@@ -148,17 +145,15 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     const widthScale = Math.min(cellWidth / metrics1.width, cellWidth / metrics2.width)
     const heightScale = Math.min(availableHeight / metrics1.height, availableHeight / metrics2.height)
     const scale = Math.min(widthScale, heightScale)
-    if (scale < 1) {
-      fontSize = fontSize * scale
-    }
+    fontSize = fontSize * scale
 
     const finalMetrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
     const finalMetrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
     const top = size / 2 - availableHeight / 2
     const y1 = top + (availableHeight - finalMetrics1.height) / 2 + finalMetrics1.ascent
     const y2 = top + (availableHeight - finalMetrics2.height) / 2 + finalMetrics2.ascent
-    const x1 = padding + cellWidth / 2
-    const x2 = padding + cellWidth + gap + cellWidth / 2
+    const x1 = cellWidth / 2
+    const x2 = cellWidth + gap + cellWidth / 2
 
     ctx.fillText(char1, x1, y1)
     ctx.fillText(char2, x2, y2)
