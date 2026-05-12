@@ -68,29 +68,6 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     return { width, height, ascent, descent }
   }
 
-  const fitTextBlock = (
-    ctx: CanvasRenderingContext2D,
-    lines: string[],
-    maxWidth: number,
-    maxHeight: number,
-    fontFamily: string
-  ) => {
-    const baseSize = 1000
-    const lineSpacingFactor = 0.05
-    const measured = lines.map((line) =>
-      getTextMetrics(ctx, line, baseSize, fontFamily)
-    )
-    const widestLine = Math.max(...measured.map((metric) => metric.width))
-    const totalTextHeight = measured.reduce((sum, metric) => sum + metric.height, 0)
-    const lineGap = Math.max(...measured.map((metric) => metric.height)) * lineSpacingFactor
-    const totalHeight = totalTextHeight + (lines.length - 1) * lineGap
-
-    const widthScale = maxWidth / widestLine
-    const heightScale = maxHeight / totalHeight
-    const scale = Math.min(widthScale, heightScale)
-    return baseSize * scale
-  }
-
   // 通常のレイアウト（複数行対応）
   const drawNormalLayout = (
     ctx: CanvasRenderingContext2D,
@@ -106,10 +83,23 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     const availableWidth = size
     const availableHeight = size
     const lineSpacingFactor = 0.05
+    let fontSize = size * 0.95
 
-    const fontSize = fitTextBlock(ctx, lines, availableWidth, availableHeight, fontFamily)
+    while (fontSize > 8) {
+      const metrics = lines.map((line) => getTextMetrics(ctx, line, fontSize, fontFamily))
+      const lineHeight = Math.max(...metrics.map((metric) => metric.height))
+      const lineGap = lineHeight * lineSpacingFactor
+      const totalHeight = metrics.reduce((sum, metric) => sum + metric.height, 0) + (lines.length - 1) * lineGap
+      const widestLine = Math.max(...metrics.map((metric) => metric.width))
+      if (widestLine <= availableWidth && totalHeight <= availableHeight) {
+        break
+      }
+      fontSize -= 1
+    }
+
     const metrics = lines.map((line) => getTextMetrics(ctx, line, fontSize, fontFamily))
-    const lineGap = Math.max(...metrics.map((metric) => metric.height)) * lineSpacingFactor
+    const lineHeight = Math.max(...metrics.map((metric) => metric.height))
+    const lineGap = lineHeight * lineSpacingFactor
     const totalHeight = metrics.reduce((sum, metric) => sum + metric.height, 0) + (lines.length - 1) * lineGap
     let y = size / 2 - totalHeight / 2
 
@@ -138,14 +128,18 @@ const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     const availableWidth = size
     const availableHeight = size
     const cellWidth = (availableWidth - gap) / 2
+    let fontSize = size * 0.95
 
-    let fontSize = size * 0.86
-    const metrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
-    const metrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
-    const widthScale = Math.min(cellWidth / metrics1.width, cellWidth / metrics2.width)
-    const heightScale = Math.min(availableHeight / metrics1.height, availableHeight / metrics2.height)
-    const scale = Math.min(widthScale, heightScale)
-    fontSize = fontSize * scale
+    while (fontSize > 8) {
+      const metrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
+      const metrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
+      const fitsWidth = metrics1.width <= cellWidth && metrics2.width <= cellWidth
+      const fitsHeight = metrics1.height <= availableHeight && metrics2.height <= availableHeight
+      if (fitsWidth && fitsHeight) {
+        break
+      }
+      fontSize -= 1
+    }
 
     const finalMetrics1 = getTextMetrics(ctx, char1, fontSize, fontFamily)
     const finalMetrics2 = getTextMetrics(ctx, char2, fontSize, fontFamily)
