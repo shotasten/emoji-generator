@@ -1,559 +1,80 @@
-# emoji-generator 180x180向け レイアウト改善方針
+# 絵文字ジェネレーター：文字サイズ・レイアウト不備に関する調査報告と修正方針
 
-## 現状の問題
+## 1. 現状の課題と原因調査
 
-Canvasサイズ自体は：
+### 課題
+- 文字が指定枠（キャンバス）に対して著しく小さく、余白が多い。
+- 2文字入力時に「愛情.png」のような、枠いっぱいに縦長に引き伸ばされたレイアウトになっていない。
 
-```txt
-180 x 180
-```
-
-になっている。
-
-しかし：
-
-```txt
-文字が小さい
-余白が大きい
-2文字レイアウトがスカスカ
-```
-
-状態になっている。
+### 主な原因
+1. **アスペクト比の維持:** Canvasの `fillText` は通常、フォントの縦横比を維持します。そのため、横幅が枠に達した時点でリサイズが止まり、高さ方向に大きな余白が生じています。
+2. **2文字専用ロジックの欠如:** 「左右分割 + 垂直方向への引き延ばし」を行うには、通常の描画処理とは別に `ctx.scale(x, y)` を用いた座標圧縮/伸長処理が必要ですが、それが実装されていない可能性が高いです。
+3. **フォントメトリクスの無視:** フォント特有の上下余白（アセンダ・ディセンダ）により、数値上のフォントサイズを枠いっぱいに設定しても、視覚的には小さく見えてしまいます。
 
 ---
 
-# 根本原因
+## 2. 対応方針
 
-現在の実装は：
+### ① 2文字時の特殊レンダリング実装
+- 入力値が2文字の場合のみ、キャンバスを左右に2分割（50%ずつ）する。
+- 各文字を独立して描画し、`ctx.scale` を使用して「横は枠の半分」「縦は枠の100%強」になるよう強制的に変倍をかける。
 
-```txt
-理論上のfit
-```
+### ② 動的フォントサイズ計算の最適化
+- 1文字や3文字以上の場合は、`ctx.measureText` をループ処理で回し、キャンバス幅の95%に収まる限界の `fontSize` を動的に算出する。
+- `textBaseline = 'middle'` を指定し、垂直方向のズレを解消する。
 
-を優先しすぎている。
-
-しかし実際のLINE絵文字系では：
-
-```txt
-多少はみ出してでも
-見た目で大きく見せる
-```
-
-ことが重要。
+### ③ 余白の最小化
+- `textAlign = 'center'` と `textBaseline = 'middle'` を組み合わせ、描画基点を `(width/2, height/2)` に固定して中央配置を徹底する。
 
 ---
 
-# 問題1
-
-## scale に `1` 制限が入っている
-
-現在：
-
-```ts
-const scale = Math.min(
-  widthScale,
-  heightScale,
-  1
-)
-```
-
-になっている。
-
----
-
-# 問題
-
-これにより：
-
-```txt
-scale <= 1
-```
-
-に固定される。
-
-つまり：
-
-```txt
-baseSize以上に拡大できない
-```
-
-状態。
-
----
-
-# 修正
-
-```ts
-const scale = Math.min(
-  widthScale,
-  heightScale
-)
-```
-
-へ変更する。
-
----
-
-# 問題2
-
-## baseSize が小さすぎる
-
-現在：
-
-```ts
-const baseSize = 300
-```
-
-になっている。
-
----
-
-# 問題
-
-Canvas の measureText は：
-
-- 小サイズ
-- 日本語
-- 太字
-- 丸文字
-
-で誤差が大きい。
-
-特に：
-
-```txt
-Rounded M+
-```
-
-系フォントでは：
-
-```txt
-指定サイズ ≠ 実際の見た目サイズ
-```
-
-になりやすい。
-
----
-
-# 修正
-
-```ts
-const baseSize = 1000
-```
-
-へ変更する。
-
----
-
-# 問題3
-
-## measureText().width を信用しすぎている
-
-現在：
-
-```ts
-metrics.width
-```
-
-をfit計算に使用している。
-
-しかし日本語では：
-
-```txt
-width が大きく出すぎる
-```
-
-ケースが多い。
-
----
-
-# 修正
-
-fit計算は：
-
-```ts
-actualBoundingBoxLeft +
-actualBoundingBoxRight
-```
-
-を優先使用する。
-
----
-
-# 推奨
-
-```ts
-const width =
-  metrics.actualBoundingBoxLeft +
-  metrics.actualBoundingBoxRight
-```
-
----
-
-# 問題4
-
-## padding が大きすぎる
-
-現在：
-
-```ts
-const padding = size * 0.03
-```
-
-180px canvasでは：
-
-```txt
-5.4px
-```
-
-になる。
-
-左右で：
-
-```txt
-10.8px
-```
-
-失われる。
-
----
-
-# 修正
-
-180x180専用なら：
-
-```ts
-const padding = 0
-```
-
-推奨。
-
----
-
-# 問題5
-
-## 2文字 gap が広すぎる
-
-現在：
-
-```ts
-const gap = size * 0.06
-```
-
-180pxでは：
-
-```txt
-10.8px
-```
-
-になる。
-
----
-
-# 問題
-
-結果：
-
-```txt
-1文字あたりの利用幅が
-約80pxしかない
-```
-
-状態になる。
-
----
-
-# 修正
-
-固定値推奨：
-
-```ts
-const gap = 2
-```
-
-または：
-
-```ts
-const gap = size * 0.01
-```
-
----
-
-# 問題6
-
-## 2文字レイアウトが「理論fit」になっている
-
-現在：
-
-```txt
-measureTextベース
-```
-
-でサイズを決定している。
-
-しかし：
-
-```txt
-漢字は縦長
-```
-
-のため、
-
-理論fitすると：
-
-```txt
-小さくなりすぎる
-```
-
-。
-
----
-
-# 修正方針
-
-2文字時は：
-
-```txt
-視覚優先
-```
-
-へ変更する。
-
----
-
-# 推奨
-
-## 2文字時は固定比率で決める
-
-```ts
-const fontSize = size * 0.86
-```
-
-推奨。
-
----
-
-# 理由
-
-LINE絵文字系では：
-
-```txt
-多少はみ出すくらいが
-ちょうどよい
-```
-
-ため。
-
----
-
-# 問題7
-
-## 行間計算が二重加算になっている
-
-現在：
-
-```ts
-lineHeight =
-  maxHeight * (1 + lineSpacingFactor)
-```
-
-の後に、
-
-さらに：
-
-```ts
-lineHeight * lineSpacingFactor
-```
-
-を追加している。
-
----
-
-# 問題
-
-行間が大きくなりすぎる。
-
----
-
-# 修正
-
-## gap を分離
-
-```ts
-const lineGap =
-  lineHeight * lineSpacingFactor
-```
-
----
-
-# totalHeight
-
-```ts
-const totalHeight =
-  totalTextHeight +
-  (lines.length - 1) * lineGap
-```
-
----
-
-# 描画側
-
-```ts
-y += metric.descent + lineGap
-```
-
----
-
-# 問題8
-
-## 実際のLINE系スタイルは「視覚fit」
-
-現在のコードは：
-
-```txt
-数学的に正しいfit
-```
-
-を目指している。
-
-しかしLINE絵文字は：
-
-```txt
-見た目が大きいこと
-```
-
-が最優先。
-
----
-
-# つまり必要なのは
-
-```txt
-安全fit
-```
-
-ではなく：
-
-```txt
-視覚fit
-```
-
-。
-
----
-
-# 推奨最終方針
-
-## 通常文字
-
-### 修正
-
-```ts
-const padding = 0
-const baseSize = 1000
-```
-
----
-
-## fit
-
-```ts
-const scale = Math.min(
-  widthScale,
-  heightScale
-)
-```
-
----
-
-# 2文字
-
-## 修正
-
-```ts
-const gap = 2
-```
-
----
-
-## fontSize
-
-```ts
-const fontSize = size * 0.86
-```
-
----
-
-## 配置
-
-左右均等配置。
-
----
-
-# 最優先修正項目
-
-## 1
-
-```ts
-Math.min(..., 1)
-```
-
-削除。
-
----
-
-## 2
-
-```ts
-baseSize = 1000
-```
-
----
-
-## 3
-
-```ts
-padding = 0
-```
-
----
-
-## 4
-
-```ts
-gap = 2
-```
-
----
-
-## 5
-
-2文字時を固定fontSize化。
-
----
-
-# 結論
-
-現在の問題は：
-
-```txt
-「理論的に安全なfit」
-をやりすぎて、
-視覚的に小さくなっている
-```
-
-こと。
-
-180x180 のLINE絵文字系では：
-
-```txt
-多少はみ出すくらい
-```
-
-を前提にした：
-
-```txt
-視覚fitベース
-```
-
-の実装へ変更する必要がある。
+## 3. 修正用ロジック（JavaScript/Canvas）
+
+```javascript
+/**
+ * 要件に基づいた高密度描画ロジック
+ */
+function renderEmoji(ctx, text, canvasSize) {
+  ctx.clearRect(0, 0, canvasSize, canvasSize);
+  if (!text) return;
+
+  const fontFace = "Rounded M+ 1p black";
+  ctx.fillStyle = "#FFB7C5"; // サンプル色
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (text.length === 2) {
+    // 【2文字：左右分割・縦長引き延ばし】
+    const chars = text.split('');
+    chars.forEach((char, i) => {
+      ctx.save();
+      const centerX = (i === 0) ? canvasSize * 0.25 : canvasSize * 0.75;
+      const centerY = canvasSize * 0.5;
+
+      // 1. ベースサイズを設定（キャンバス高さを基準）
+      const baseFontSize = canvasSize; 
+      ctx.font = `bold ${baseFontSize}px "${fontFace}"`;
+      
+      // 2. スケーリング倍率の計算
+      const metrics = ctx.measureText(char);
+      const scaleX = (canvasSize * 0.48) / metrics.width; // 横幅48%に収める
+      const scaleY = 1.1; // 縦方向に10%ほど強調して引き伸ばす
+
+      ctx.translate(centerX, centerY);
+      ctx.scale(scaleX, scaleY);
+      ctx.fillText(char, 0, 0);
+      ctx.restore();
+    });
+  } else {
+    // 【通常：最大サイズへのフィッティング】
+    let fontSize = canvasSize;
+    ctx.font = `bold ${fontSize}px "${fontFace}"`;
+    
+    // 幅が収まるまでサイズを縮小
+    while (ctx.measureText(text).width > canvasSize * 0.95 && fontSize > 10) {
+      fontSize -= 2;
+      ctx.font = `bold ${fontSize}px "${fontFace}"`;
+    }
+    ctx.fillText(text, canvasSize / 2, canvasSize / 2);
+  }
+}
